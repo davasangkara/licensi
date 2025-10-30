@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  license-server:
+    build: .
+    container_name: license-server
+    ports:
+      - "5000:5000"
+    environment:
+      ADMIN_KEY: "super-secret-key"
+      DATABASE_URL: "sqlite:///db.sqlite3"
+      PORT: "5000"
+    volumes:
+      - ./db.sqlite3:/app/db.sqlite3
