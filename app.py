@@ -11,8 +11,16 @@ app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db.init_app(app)
 
-with app.app_context():
-    db.create_all()
+def reset_db():
+    with app.app_context():
+        # HAPUS SEMUA TABEL LAMA
+        db.drop_all()
+        # BUAT ULANG SESUAI models.py SEKARANG
+        db.create_all()
+
+# === panggil reset saat container start ===
+reset_db()
+
 
 @app.route("/", methods=["GET"])
 def home():
@@ -28,7 +36,7 @@ def home():
         }
     }, 200
 
-# ----------- INI PENTING BANGET ------------
+
 @app.route("/check_license", methods=["POST"])
 def check_license():
     body = request.get_json(force=True)
@@ -38,46 +46,55 @@ def check_license():
 
     lic = License.query.filter_by(machine_id=machine_id).first()
     return jsonify({"allowed": bool(lic)}), 200
-# -------------------------------------------
+
 
 def require_admin():
     key = request.headers.get("X-API-KEY")
     if not key or key != ADMIN_KEY:
         abort(401)
 
+
 @app.route("/admin/add", methods=["POST"])
 def admin_add():
     require_admin()
+
     body = request.get_json(force=True)
     machine_id = body.get("machine_id")
     note = body.get("note", "")
+
     if not machine_id:
         return jsonify({"error": "machine_id required"}), 400
+
     if License.query.filter_by(machine_id=machine_id).first():
         return jsonify({"error": "already exists"}), 400
 
     lic = License(machine_id=machine_id, note=note)
     db.session.add(lic)
     db.session.commit()
+
     return jsonify({"ok": True, "id": lic.id}), 201
+
 
 @app.route("/admin/list", methods=["GET"])
 def admin_list():
     require_admin()
+
     rows = License.query.order_by(License.created_at.desc()).all()
-    out = []
+    data = []
     for r in rows:
-        out.append({
+        data.append({
             "id": r.id,
             "machine_id": r.machine_id,
             "note": r.note,
-            "created_at": r.created_at.isoformat()+"Z"
+            "created_at": r.created_at.isoformat() + "Z"
         })
-    return jsonify(out), 200
+    return jsonify(data), 200
+
 
 @app.route("/admin/remove", methods=["POST"])
 def admin_remove():
     require_admin()
+
     body = request.get_json(force=True)
     machine_id = body.get("machine_id")
     if not machine_id:
@@ -89,7 +106,9 @@ def admin_remove():
 
     db.session.delete(lic)
     db.session.commit()
+
     return jsonify({"ok": True}), 200
+
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
